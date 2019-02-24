@@ -41,7 +41,36 @@ module Expr =
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
     *)
-    let eval _ = failwith "Not implemented yet"
+    let to_bool (i: int): bool = i != 0
+    let to_int (b: bool): int = if b then 1 else 0
+
+    let calc (op: string) (left: int) (right: int): int = match op with
+      | "+" -> left + right
+      | "-" -> left - right
+      | "*" -> left * right
+      | "/" -> left / right
+      | "%" -> left mod right
+      | "<" -> to_int (left < right)
+      | ">" -> to_int (left > right)
+      | "<=" -> to_int (left <= right)
+      | ">=" -> to_int (left >= right)
+      | "==" -> to_int (left == right)
+      | "!=" -> to_int (left != right)
+      | "&&" -> to_int ( (to_bool left) && (to_bool right) )
+      | "!!" -> to_int ( (to_bool left) || (to_bool right) )
+
+
+    (* Expression evaluator
+
+        val eval : state -> expr -> int
+    
+      Takes a state and an expression, and returns the value of the expression in 
+      the given state.
+    *)
+    let rec eval (st: state) (ex: t): int = match ex with
+      | Const x -> x
+      | Var x -> st x
+      | Binop (op, left, right) -> calc op (eval st left) (eval st right) 
 
   end
                     
@@ -65,8 +94,20 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ = failwith "Not implemented yet"
-                                                         
+    let rec eval (cfg: config) (op: t): config = 
+      let (st, input, output) = cfg in
+      match op with
+      | Read var        -> (match input with
+                              | x::rest -> (Expr.update var x st), rest, output 
+                              | [] -> failwith("No more input")
+                           )
+      
+      | Write expr      -> st, input, (output @ [Expr.eval st expr])
+
+      | Assign (var, expr) -> (Expr.update var (Expr.eval st expr) st), input, output
+
+      | Seq (t1, t2)       -> eval (eval cfg t1) t2
+
   end
 
 (* The top-level definitions *)
