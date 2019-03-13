@@ -99,7 +99,19 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ _ = failwith "Not yet implemented"
+    let rec eval (cfg: config) (op: t): config = 
+      let (st, input, output) = cfg in
+      match op with
+      | Read var        -> (match input with
+                              | x::rest -> (Expr.update var x st), rest, output 
+                              | [] -> failwith("No more input")
+                           )
+
+      | Write expr      -> st, input, (output @ [Expr.eval st expr])
+
+      | Assign (var, expr) -> (Expr.update var (Expr.eval st expr) st), input, output
+      
+      | Seq (t1, t2)       -> eval (eval cfg t1) t2
 
     (* Statement parser *)
     ostap (
