@@ -37,6 +37,26 @@ module Expr =
     *)
     let update x v s = fun y -> if x = y then v else s y
 
+
+    let to_bool (i: int): bool = i != 0
+    let to_int (b: bool): int = if b then 1 else 0
+
+    let calc (op: string) (left: int) (right: int): int = match op with
+      | "+" -> left + right
+      | "-" -> left - right
+      | "*" -> left * right
+      | "/" -> left / right
+      | "%" -> left mod right
+      | "<" -> to_int (left < right)
+      | ">" -> to_int (left > right)
+      | "<=" -> to_int (left <= right)
+      | ">=" -> to_int (left >= right)
+      | "==" -> to_int (left == right)
+      | "!=" -> to_int (left != right)
+      | "&&" -> to_int ( (to_bool left) && (to_bool right) )
+      | "!!" -> to_int ( (to_bool left) || (to_bool right) )
+
+
     (* Expression evaluator
 
           val eval : state -> t -> int
@@ -44,7 +64,10 @@ module Expr =
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
     *)
-    let eval _ = failwith "Not implemented yet"
+    let rec eval (st: state) (ex: t): int = match ex with
+      | Const x -> x
+      | Var x -> st x
+      | Binop (op, left, right) -> calc op (eval st left) (eval st right)
 
     (* Expression parser. You can use the following terminals:
 
