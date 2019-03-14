@@ -67,14 +67,31 @@ module Expr =
       | Var x -> st x
       | Binop (op, left, right) -> calc op (eval st left) (eval st right)
 
+
+    let prsBinOp op = ostap(- $(op)), (fun l r -> Binop (op, l, r))
+
     (* Expression parser. You can use the following terminals:
 
          IDENT   --- a non-empty identifier a-zA-Z[a-zA-Z0-9_]* as a string
          DECIMAL --- a decimal constant [0-9]+ as a string
                                                                                                                   
     *)
-    ostap (                                      
-      parse: empty {failwith "Not yet implemented"}
+    ostap (
+      expr:
+        !(Ostap.Util.expr
+          (fun x -> x)
+          (Array.map (fun (asc, ops) -> asc, List.map prsBinOp ops)
+            [|
+              `Lefta, ["!!"];
+              `Lefta, ["&&"];
+              `Nona , ["<="; "<"; ">="; ">"; "=="; "!="];
+              `Lefta, ["+"; "-"];
+              `Lefta, ["*"; "/"; "%"];
+            |]
+          )
+          primary
+        );
+      primary: v:IDENT {Var v} | c:DECIMAL {Const c} | -"(" expr -")"
     )
     
   end
@@ -110,12 +127,16 @@ module Stmt =
       | Write expr      -> st, input, (output @ [Expr.eval st expr])
 
       | Assign (var, expr) -> (Expr.update var (Expr.eval st expr) st), input, output
-      
+
       | Seq (t1, t2)       -> eval (eval cfg t1) t2
 
     (* Statement parser *)
     ostap (
-      parse: empty {failwith "Not yet implemented"}
+      stmnt:
+        x:IDENT ":=" e:!(Expr.expr)         {Assign (x, e)}
+        | "read"  "("  x:IDENT        ")"   {Read x}
+        | "write" "("  e:!(Expr.expr) ")"   {Write e};
+      parse: l:stmnt ";" rest:parse {Seq (l, rest)} | stmnt
     )
       
   end
