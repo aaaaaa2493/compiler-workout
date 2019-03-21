@@ -194,6 +194,11 @@ let rec compile env prg : env * instr list = match prg with
       | ST x     -> let value, new_env = (env#global x)#pop in
                     let var            = env#loc x          in 
                     new_env, [Mov (value, (M var))]
+      | LABEL l     -> env, [Label l]
+      | JMP l       -> env, [Jmp l]
+      | CJMP (b, l) ->
+         let s, env = env#pop in
+         env, [Binop ("cmp", L 0, s); CJmp (b, l)]
       ) in
     let result_env, result_inst_list = compile changed_env tail in
     result_env, (instr_list @ result_inst_list)

@@ -28,32 +28,40 @@ type config = int list * Stmt.config
    Takes an environment, a configuration and a program, and returns a configuration as a result. The
    environment is used to locate a label to jump to (via method env#labeled <label_name>)
 *)                         
-let eval_one_instriction config_sm instruction = 
-	let (stack, config) = config_sm in
-	let (st, input, output) = config in
+let rec eval env ((stack, ((state, input, output) as c)) as config) = function
+| [] -> config
+| instruction :: rest_instr ->
+     match instruction with
+     | BINOP op ->
+          ( match stack with
+          | y::x::rest -> eval env ((Expr.calc op x y) :: rest, c) rest_instr )
 
-	match instruction with
-	| BINOP op -> (match stack with
-		              | y::x::rest -> [Expr.calc op x y] @ rest, config
-                )
+     | CONST v -> eval env (v::stack, c) rest_instr
 
-  | CONST x  -> [x] @ stack, config
+     | READ ->
+        ( match input with
+          | x::rest -> eval env (x::stack, (state, rest, output)) rest_instr )
 
-	| READ     -> (match input with
-		              | x::rest -> [x] @ stack, (st, rest, output)
-                )
+     | WRITE ->
+        ( match stack with
+          | x::rest -> eval env (rest, (state, input, output @ [x])) rest_instr )
 
-	| WRITE    -> (match stack with
-		              | x::rest -> rest, (st, input, output @ [x])
-                )
+     | LD x -> eval env ((state x) :: stack, c) rest_instr
 
-	| LD var   -> [st var] @ stack, config
+     | ST x ->
+        ( match stack with
+          | z::rest -> eval env (rest, ((Expr.update x z state), input, output)) rest_instr )
 
-	| ST var   -> (match stack with
-		              | x::rest -> rest, (Expr.update var x st, input, output)
-                )
+     | LABEL l -> eval env config rest_instr
 
-let eval config_sm prog = List.fold_left eval_one_instriction config_sm prog
+     | JMP l -> eval env config (env#labeled l)
+
+     | CJMP (b, l) ->
+        ( match stack with
+          | x::rest ->
+              if (x = 0 && b = "z" || x != 0 && b = "nz")
+              then eval env (rest, c) (env#labeled l)
+              else eval env (rest, c) rest_instr )
 
 (* Top-level evaluation
 
@@ -84,8 +92,45 @@ let rec compile =
   | Expr.Const n          -> [CONST n]
   | Expr.Binop (op, x, y) -> expr x @ expr y @ [BINOP op]
   in
+  let label =
+  object
+    val mutable counter = 0
+    method create =
+      counter <- counter + 1;
+      "l_" ^ string_of_int counter
+  end
+  in
   function
   | Stmt.Seq (s1, s2)  -> compile s1 @ compile s2
   | Stmt.Read x        -> [READ; ST x]
   | Stmt.Write e       -> expr e @ [WRITE]
   | Stmt.Assign (x, e) -> expr e @ [ST x]
+  | Stmt.Skip           -> []
+
+  | Stmt.If (e, s1, s2) ->
+     let l_else = label#create in
+     let l_fi = label#create in
+       (expr e) 
+     @ [CJMP ("z", l_else)] 
+     @ (compile s1) 
+     @ [JMP l_fi] 
+     @ [LABEL l_else] 
+     @ (compile s2) 
+     @ [LABEL l_fi]
+
+  | Stmt.While (e, s) ->
+     let l_expr = label#create in
+     let l_od = label#create in
+       [LABEL l_expr] 
+     @ (expr e) 
+     @ [CJMP ("z", l_od)] 
+     @ (compile s)
+     @ [JMP l_expr] 
+     @ [LABEL l_od]
+
+  | Stmt.Repeat (e, s) ->
+     let l_repeat = label#create in
+       [LABEL l_repeat] 
+     @ (compile s) 
+     @ (expr e) 
+     @ [CJMP ("z", l_repeat)]
