@@ -190,10 +190,10 @@ let rec compile env prg : env * instr list = match prg with
                     new_env, [Push var; Call "Lwrite"; Pop eax]
       | LD x     -> let space, new_env = env#allocate       in
                     let var            = env#loc x          in 
-                    new_env, [Mov ((M var), space)]
+                    new_env, [Mov ((M var), eax); Mov (eax, space)]
       | ST x     -> let value, new_env = (env#global x)#pop in
                     let var            = env#loc x          in 
-                    new_env, [Mov (value, (M var))]
+                    new_env, [Mov (value, eax); Mov (eax, (M var))]
       | LABEL l     -> env, [Label l]
       | JMP l       -> env, [Jmp l]
       | CJMP (b, l) ->
