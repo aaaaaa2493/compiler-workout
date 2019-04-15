@@ -121,12 +121,12 @@ let rec compile =
   | Stmt.While (e, s) ->
      let l_expr = label#create in
      let l_od = label#create in
-       [LABEL l_expr] 
-     @ (expr e) 
-     @ [CJMP ("z", l_od)] 
-     @ (compile s)
-     @ [JMP l_expr] 
+       [JMP l_expr]
      @ [LABEL l_od]
+     @ (compile s)
+     @ [LABEL l_expr]
+     @ (expr e)
+     @ [CJMP ("nz", l_od)] 
 
   | Stmt.Repeat (e, s) ->
      let l_repeat = label#create in
