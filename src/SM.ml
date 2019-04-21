@@ -87,11 +87,35 @@ let run p i =
    stack machine
 *)
 let rec compile =
-  let rec expr = function
-  | Expr.Var   x          -> [LD x]
-  | Expr.Const n          -> [CONST n]
-  | Expr.Binop (op, x, y) -> expr x @ expr y @ [BINOP op]
+
+  let rec compile_expr = function
+    | Expr.Var   x            -> [LD x]
+    | Expr.Const n            -> [CONST n]
+    | Expr.Binop (op, e1, e2) -> 
+        (compile_expr e1) 
+      @ (compile_expr e2) 
+      @ [BINOP op]
   in
+
+
+  let rec compile_if stmt l_end = match stmt with
+    | Stmt.Seq (s1, s2)   -> 
+        (compile s1) 
+      @ (compile_if s2 l_end)
+
+    | Stmt.If (e, s1, s1) ->
+      let l_else = label#create in
+        (compile_expr e)
+      @ [CJMP ("z", l_else)]
+      @ (compile_if s1 l_end)
+      @ [JMP l_end]
+      @ [LABEL l_else]
+      @ (compile s2)
+
+    | _ -> compile stmt
+  in
+
+
   let label =
   object
     val mutable counter = 0
@@ -100,37 +124,46 @@ let rec compile =
       "l_" ^ string_of_int counter
   end
   in
+
+
   function
-  | Stmt.Seq (s1, s2)  -> compile s1 @ compile s2
-  | Stmt.Read x        -> [READ; ST x]
-  | Stmt.Write e       -> expr e @ [WRITE]
-  | Stmt.Assign (x, e) -> expr e @ [ST x]
-  | Stmt.Skip           -> []
+    | Stmt.Seq (s1, s2) -> 
+        (compile s1) 
+      @ (compile s2)
 
-  | Stmt.If (e, s1, s2) ->
-     let l_else = label#create in
-     let l_fi = label#create in
-       (expr e) 
-     @ [CJMP ("z", l_else)] 
-     @ (compile s1) 
-     @ [JMP l_fi] 
-     @ [LABEL l_else] 
-     @ (compile s2) 
-     @ [LABEL l_fi]
+    | Stmt.Read x -> 
+        [READ]
+      @ [ST x]
 
-  | Stmt.While (e, s) ->
-     let l_expr = label#create in
-     let l_od = label#create in
-       [JMP l_expr]
-     @ [LABEL l_od]
-     @ (compile s)
-     @ [LABEL l_expr]
-     @ (expr e)
-     @ [CJMP ("nz", l_od)] 
+    | Stmt.Write e -> 
+        (compile_expr e) 
+      @ [WRITE]
 
-  | Stmt.Repeat (e, s) ->
-     let l_repeat = label#create in
-       [LABEL l_repeat] 
-     @ (compile s) 
-     @ (expr e) 
-     @ [CJMP ("z", l_repeat)]
+    | Stmt.Assign (x, e) -> 
+        (compile_expr e) 
+      @ [ST x]
+
+    | Stmt.Skip -> 
+        []
+
+    | Stmt.If (e, s1, s2) ->
+      let l_end = label#create in
+        (compile_if stmt l_end)
+      @ [LABEL l_end]
+
+    | Stmt.While (e, s) ->
+      let l_expr = label#create in
+      let l_od = label#create in
+        [JMP l_expr]
+      @ [LABEL l_od]
+      @ (compile s)
+      @ [LABEL l_expr]
+      @ (expr e)
+      @ [CJMP ("nz", l_od)] 
+
+    | Stmt.Repeat (e, s) ->
+      let l_repeat = label#create in
+        [LABEL l_repeat] 
+      @ (compile s) 
+      @ (expr e) 
+      @ [CJMP ("z", l_repeat)]
