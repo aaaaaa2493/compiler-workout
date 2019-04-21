@@ -86,7 +86,17 @@ let run p i =
    Takes a program in the source language and returns an equivalent program for the
    stack machine
 *)
-let rec compile =
+let rec compile stmt =
+
+  let label =
+    object
+      val mutable counter = 0
+      method create =
+        counter <- counter + 1;
+        "l_" ^ string_of_int counter
+    end
+  in
+
 
   let rec compile_expr = function
     | Expr.Var   x            -> [LD x]
@@ -103,7 +113,7 @@ let rec compile =
         (compile s1) 
       @ (compile_if s2 l_end)
 
-    | Stmt.If (e, s1, s1) ->
+    | Stmt.If (e, s1, s2) ->
       let l_else = label#create in
         (compile_expr e)
       @ [CJMP ("z", l_else)]
@@ -116,17 +126,7 @@ let rec compile =
   in
 
 
-  let label =
-  object
-    val mutable counter = 0
-    method create =
-      counter <- counter + 1;
-      "l_" ^ string_of_int counter
-  end
-  in
-
-
-  function
+  match stmt with
     | Stmt.Seq (s1, s2) -> 
         (compile s1) 
       @ (compile s2)
@@ -158,12 +158,12 @@ let rec compile =
       @ [LABEL l_od]
       @ (compile s)
       @ [LABEL l_expr]
-      @ (expr e)
+      @ (compile_expr e)
       @ [CJMP ("nz", l_od)] 
 
     | Stmt.Repeat (e, s) ->
       let l_repeat = label#create in
         [LABEL l_repeat] 
       @ (compile s) 
-      @ (expr e) 
+      @ (compile_expr e) 
       @ [CJMP ("z", l_repeat)]
