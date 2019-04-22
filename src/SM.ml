@@ -79,6 +79,16 @@ let run p i =
   let m = make_map M.empty p in
   let (_, (_, _, o)) = eval (object method labeled l = M.find l m end) ([], (Expr.empty, i, [])) p in o
 
+
+let label =
+  object
+    val mutable counter = 0
+    method create =
+      counter <- counter + 1;
+      "l_" ^ string_of_int counter
+  end
+
+
 (* Stack machine compiler
 
      val compile : Language.Stmt.t -> prg
@@ -87,16 +97,6 @@ let run p i =
    stack machine
 *)
 let rec compile stmt =
-
-  let label =
-    object
-      val mutable counter = 0
-      method create =
-        counter <- counter + 1;
-        "l_" ^ string_of_int counter
-    end
-  in
-
 
   let rec compile_expr = function
     | Expr.Var   x            -> [LD x]
